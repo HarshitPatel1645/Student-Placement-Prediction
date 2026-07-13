@@ -1,151 +1,218 @@
-import numpy as np
-import pandas as pd
 import streamlit as st
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
+import pandas as pd
 
-# --- PAGE CONFIGURATION ---
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.metrics import accuracy_score, mean_absolute_error, r2_score
+
+# -----------------------------
+# Page Configuration
+# -----------------------------
 st.set_page_config(
-    page_title="Real Student Placement Predictor", page_icon="🎓", layout="centered"
+    page_title="Student Placement Prediction",
+    page_icon="🎓",
+    layout="wide"
 )
 
+st.title("🎓 Student Placement Prediction System")
+st.markdown(
+    "Predict whether a student will be placed and estimate the expected salary."
+)
 
-# --- DATA LOADING & PREPROCESSING ---
-@st.cache_resource
-def load_and_train_model():
-    try:
-        df = pd.read_csv(r"C:\Users\PARTH\PycharmProjects\HarshitPythonProject\Placement.csv")
-    except FileNotFoundError:
-        st.error(
-            "⚠️ 'student_placement.csv' not found! Please place your CSV data file in this directory."
+# -----------------------------
+# Load Dataset
+# -----------------------------
+df = pd.read_csv("studentdata.csv")
+
+# -----------------------------
+# Encode Target
+# -----------------------------
+le = LabelEncoder()
+df["Placement_Status"] = le.fit_transform(df["Placement_Status"])
+
+features = [
+    "CGPA",
+    "Internships",
+    "Projects",
+    "Aptitude_Test_Score",
+    "Communication_Score",
+    "Academic_Backlogs"
+]
+
+# -----------------------------
+# Logistic Regression Model
+# -----------------------------
+X = df[features]
+y = df["Placement_Status"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.20,
+    random_state=42
+)
+
+log_model = LogisticRegression(max_iter=1000)
+log_model.fit(X_train, y_train)
+
+accuracy = accuracy_score(y_test, log_model.predict(X_test))
+
+# -----------------------------
+# Linear Regression Model
+# -----------------------------
+salary_df = df[df["Salary_LPA"] > 0]
+
+X_salary = salary_df[features]
+y_salary = salary_df["Salary_LPA"]
+
+Xs_train, Xs_test, ys_train, ys_test = train_test_split(
+    X_salary,
+    y_salary,
+    test_size=0.20,
+    random_state=42
+)
+
+linear_model = LinearRegression()
+linear_model.fit(Xs_train, ys_train)
+
+salary_prediction = linear_model.predict(Xs_test)
+
+mae = mean_absolute_error(ys_test, salary_prediction)
+r2 = r2_score(ys_test, salary_prediction)
+
+# -----------------------------
+# Sidebar Input
+# -----------------------------
+st.sidebar.header("Enter Student Details")
+
+cgpa = st.sidebar.slider("CGPA", 0.0, 10.0, 8.0)
+
+internships = st.sidebar.number_input(
+    "Internships",
+    min_value=0,
+    max_value=10,
+    value=1
+)
+
+projects = st.sidebar.number_input(
+    "Projects",
+    min_value=0,
+    max_value=20,
+    value=2
+)
+
+aptitude = st.sidebar.slider(
+    "Aptitude Test Score",
+    0,
+    100,
+    75
+)
+
+communication = st.sidebar.slider(
+    "Communication Score",
+    0,
+    100,
+    80
+)
+
+backlogs = st.sidebar.number_input(
+    "Academic Backlogs",
+    min_value=0,
+    max_value=10,
+    value=0
+)
+
+# -----------------------------
+# Prediction
+# -----------------------------
+if st.sidebar.button("Predict Placement"):
+
+    sample = pd.DataFrame({
+        "CGPA": [cgpa],
+        "Internships": [internships],
+        "Projects": [projects],
+        "Aptitude_Test_Score": [aptitude],
+        "Communication_Score": [communication],
+        "Academic_Backlogs": [backlogs]
+    })
+
+    placement = log_model.predict(sample)
+    probability = log_model.predict_proba(sample)
+
+    salary = linear_model.predict(sample)
+
+    status = le.inverse_transform(placement)[0]
+
+    placed_probability = probability[0][1] * 100
+    not_placed_probability = probability[0][0] * 100
+
+    st.divider()
+    st.subheader("Prediction Result")
+
+    if status == "Placed":
+        st.success("🎉 Congratulations! The student is likely to be placed.")
+    else:
+        st.error("❌ The student has a lower chance of getting placed.")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric(
+            label="Placement Status",
+            value=status
         )
-        st.stop()
 
-    # Clean column names (strip whitespace)
-    df.columns = df.columns.str.strip()
-
-    # Mappings for categorical text variables
-    skill_map = {"Low": 1, "Medium": 2, "High": 3}
-    binary_map = {"No": 0, "Yes": 1}
-
-    df["Communication Skills"] = df["Communication Skills"].map(skill_map)
-    df["Technical Skills"] = df["Technical Skills"].map(skill_map)
-    df["Internship Experience"] = df["Internship Experience"].map(binary_map)
-    df["Work Experience"] = df["Work Experience"].map(binary_map)
-
-    # If your raw text snippet doesn't have a label column, create a logical one for training
-    if "Placement_Status" not in df.columns:
-        # Rules: Placed if high CGPA & technical skills, or good degree & experience without high backlogs
-        df["Placement_Status"] = np.where(
-            (df["CGPA"] >= 7.5)
-            & (df["Technical Skills"] >= 2)
-            & (df["Backlogs"] == 0),
-            1,
-            0,
+    with col2:
+        st.metric(
+            label="Expected Salary (LPA)",
+            value=f"{salary[0]:.2f}"
         )
 
-    # Separate features and target
-    X = df.drop(columns=["Placement_Status"])
-    y = df["Placement_Status"]
+    st.subheader("Placement Probability")
 
-    # Train scaler and model
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    st.progress(int(placed_probability))
 
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X_scaled, y)
+    col3, col4 = st.columns(2)
 
-    return model, scaler
+    with col3:
+        st.metric(
+            "Placed Probability",
+            f"{placed_probability:.2f}%"
+        )
 
+    with col4:
+        st.metric(
+            "Not Placed Probability",
+            f"{not_placed_probability:.2f}%"
+        )
 
-# Initialize the model and preprocessing scaler
-model, scaler = load_and_train_model()
+    if placed_probability >= 80:
+        st.success("🌟 Excellent placement chances!")
+    elif placed_probability >= 60:
+        st.info("👍 Good placement chances. Keep improving your skills.")
+    elif placed_probability >= 40:
+        st.warning("⚠️ Average placement chances. More preparation is recommended.")
+    else:
+        st.error("❌ Low placement chances. Focus on improving academics and skills.")
 
-# --- STREAMLIT USER INTERFACE ---
-st.title("🎓 Student Placement Prediction App")
-st.write("Input the student's metrics below to calculate placement probability.")
-st.markdown("---")
+# -----------------------------
+# Model Performance
+# -----------------------------
+st.divider()
 
-col1, col2 = st.columns(2)
+st.subheader("Model Performance")
+
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.subheader("📊 Academic Metrics")
-    cgpa = st.number_input(
-        "CGPA", min_value=0.0, max_value=10.0, value=7.92, step=0.01
-    )
-    p_10th = st.number_input(
-        "10th Percentage", min_value=0.0, max_value=100.0, value=85.74, step=0.01
-    )
-    p_12th = st.number_input(
-        "12th Percentage", min_value=0.0, max_value=100.0, value=70.40, step=0.01
-    )
-    p_degree = st.number_input(
-        "Degree Percentage", min_value=0.0, max_value=100.0, value=73.30, step=0.01
-    )
-    backlogs = st.number_input(
-        "Current Backlogs", min_value=0, max_value=10, value=0, step=1
-    )
+    st.metric("Classification Accuracy", f"{accuracy*100:.2f}%")
 
 with col2:
-    st.subheader("🛠️ Skills & Experience")
-    comm_skills_text = st.selectbox(
-        "Communication Skills", options=["Low", "Medium", "High"], index=1
-    )
-    tech_skills_text = st.selectbox(
-        "Technical Skills", options=["Low", "Medium", "High"], index=2
-    )
-    internship_text = st.selectbox(
-        "Internship Experience", options=["No", "Yes"], index=1
-    )
-    work_exp_text = st.selectbox("Work Experience", options=["No", "Yes"], index=0)
-    projects = st.number_input(
-        "Projects Completed", min_value=0, max_value=10, value=0, step=1
-    )
+    st.metric("Salary MAE", f"{mae:.2f}")
 
-st.markdown("---")
+with col3:
+    st.metric("Salary R² Score", f"{r2:.2f}")
 
-# --- CONVERT STREAMLIT INPUTS TO NUMERIC ---
-skill_encoding = {"Low": 1, "Medium": 2, "High": 3}
-binary_encoding = {"No": 0, "Yes": 1}
-
-comm_skills = skill_encoding[comm_skills_text]
-tech_skills = skill_encoding[tech_skills_text]
-internship = binary_encoding[internship_text]
-work_exp = binary_encoding[work_exp_text]
-
-# --- PREDICTION LOGIC ---
-if st.button("🔮 Run Placement Model", type="primary"):
-    # Group inputs in the exact schema order as the original CSV file
-    raw_input = np.array(
-        [
-            [
-                cgpa,
-                p_10th,
-                p_12th,
-                p_degree,
-                comm_skills,
-                tech_skills,
-                internship,
-                projects,
-                backlogs,
-                work_exp,
-            ]
-        ]
-    )
-
-    # Scale the metrics using the calibrated training scaler
-    scaled_input = scaler.transform(raw_input)
-
-    # Compute prediction metrics
-    prediction = model.predict(scaled_input)[0]
-    probability = model.predict_proba(scaled_input)[0][1]
-
-    # Render results
-    st.subheader("Prediction Result:")
-    if prediction == 1:
-        st.success("🎉 **Status: Placed**")
-        st.metric(label="Calculated Probability", value=f"{probability:.2%}")
-        st.balloons()
-    else:
-        st.error("⚠️ **Status: Not Placed**")
-        st.metric(label="Calculated Probability", value=f"{probability:.2%}")
+st.divider()
+st.caption("🎓 Student Placement Prediction System")
