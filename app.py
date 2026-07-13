@@ -17,7 +17,7 @@ def load_and_train_model():
         df = pd.read_csv(r"C:\Users\PARTH\PycharmProjects\HarshitPythonProject\Placement.csv")
     except FileNotFoundError:
         st.error(
-            "⚠️ 'Placement.csv' not found! Please place your CSV data file in this directory."
+            "⚠️ 'student_placement.csv' not found! Please place your CSV data file in this directory."
         )
         st.stop()
 
