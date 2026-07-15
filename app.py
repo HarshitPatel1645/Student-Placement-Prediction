@@ -24,7 +24,7 @@ st.markdown("Predict whether a student will be placed and estimate the expected 
 # ------------------------------------------------
 # Load Dataset
 # ------------------------------------------------
-df = pd.read_csv("student_placement__dataset.csv")
+df = pd.read_csv("studentdata.csv")
 
 # ------------------------------------------------
 # Encode Target
