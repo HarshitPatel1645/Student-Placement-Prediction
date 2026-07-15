@@ -246,18 +246,33 @@ if predict_button:
         st.metric(
             "Not Placed Probability",f"{not_placed_probability:.2f}%")
 
-    if placed_probability >= 80:
+    if placed_probability >= 90:
+        st.success("🏆 Excellent! Student has very high placement chances.")
+
+        # 🎈 Balloon + ❄️ Snow Animation
+        st.balloons()
+        st.snow()
+
+
+    elif placed_probability >= 80:
         st.success("🟢 Excellent placement chances!")
+
+        # ❄️ Snow Animation
+        st.snow()
+
 
     elif placed_probability >= 60:
         st.info("🟡 Good placement chances. Keep improving your skills.")
 
+
     elif placed_probability >= 40:
         st.warning("🟠 Average placement chances. More preparation is recommended.")
 
-    else:
-        st.error("🔴 Low placement chances. Focus on improving CGPA, aptitude, communication, and practical experience.")
 
+    else:
+        st.error(
+            "🔴 Low placement chances. Focus on improving CGPA, aptitude, communication, and practical experience."
+        )
 # --------------------------------------------
 # End of Application
 # --------------------------------------------
